@@ -8,6 +8,7 @@
 import Foundation
 import GRPC
 import GRPCEncapsulates
+import SwiftProtobuf
 
 extension StreamClient {
     public struct Read: UnaryStream {
@@ -143,6 +144,7 @@ extension Stream.Identifier {
 extension StreamClient.Read {
     public struct Response: GRPCResponse {
         public enum Content: Sendable {
+            case unserviceable(underlying: Message)
             case event(readEvent: ReadEvent)
             case commitPosition(firstStream: UInt64)
             case commitPosition(lastStream: UInt64)
@@ -183,7 +185,11 @@ extension StreamClient.Read {
         init(content: UnderlyingMessage.OneOf_Content) throws {
             switch content {
             case let .event(value):
-                try self.init(message: value)
+                do{
+                    try self.init(message: value)
+                }catch let error as ReadEventError{
+                    self.init(content: .unserviceable(underlying: value))
+                }
             case let .firstStreamPosition(value):
                 self.init(firstStreamPosition: value)
             case let .lastStreamPosition(value):
