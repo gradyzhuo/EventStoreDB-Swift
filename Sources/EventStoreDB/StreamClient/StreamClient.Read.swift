@@ -144,8 +144,8 @@ extension Stream.Identifier {
 extension StreamClient.Read {
     public struct Response: GRPCResponse {
         public enum Content: Sendable {
-            case unserviceable(underlying: Message)
             case event(readEvent: ReadEvent)
+            case unserviceable(link: RecordedEvent?)
             case commitPosition(firstStream: UInt64)
             case commitPosition(lastStream: UInt64)
             case position(lastAllStream: Stream.Position)
@@ -188,7 +188,11 @@ extension StreamClient.Read {
                 do{
                     try self.init(message: value)
                 }catch let error as ReadEventError{
-                    self.init(content: .unserviceable(underlying: value))
+                    if value.hasLink {
+                        try self.init(content: .unserviceable(link: RecordedEvent(message: value.link)))
+                    }else{
+                        self.init(content: .unserviceable(link: nil))
+                    }
                 }
             case let .firstStreamPosition(value):
                 self.init(firstStreamPosition: value)
