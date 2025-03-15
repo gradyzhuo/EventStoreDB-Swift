@@ -20,14 +20,13 @@ struct StreamTests: Sendable {
     @Test("Stream should be not found and throw an error.")
     func testStreamNoFound() async throws {
         let client = KurrentDBClient(settings: .localhost())
-
+        
         await #expect(throws: EventStoreError.self) {
             let responses = try await client
                 .streams(of: .specified(UUID().uuidString))
                 .read(cursor: .start, options: .init())
             var responsesIterator = responses.makeAsyncIterator()
-            let test = try await responsesIterator.next()
-            print(test)
+           _ = try await responsesIterator.next()
         }
     }
 
@@ -39,7 +38,7 @@ struct StreamTests: Sendable {
     ])
     func testAppendEvent(events: [EventData]) async throws {
         let streamIdentifier = StreamIdentifier(name: UUID().uuidString)
-        let client = KurrentDBClient(settings: .localhost())
+        let client = KurrentDBClient(settings: .localhost())        
         let streams = client.streams(of: .specified(streamIdentifier))
         let appendResponse = try await streams.append(events: events, options: .init().revision(expected: .any))
 
@@ -53,7 +52,7 @@ struct StreamTests: Sendable {
         else {
             throw TestingError.exception("readResponse.content or appendResponse.position is not Event or Position")
         }
-
+        
         #expect(readPosition == position)
 
         try await streams.delete()
@@ -83,7 +82,7 @@ struct StreamTests: Sendable {
         let client = KurrentDBClient(settings: .localhost())
         let streams = client.streams(of: .specified(streamIdentifier))
         
-        let subscription = try await streams.subscribe(cursor: .end, options: .init())
+        let subscription = try await streams.subscribe(from: .end, options: .init())
         let response = try await streams.append(events: .init(
             eventType: "Subscribe-AccountCreated", payload: ["Description": "Gears of War 10"]
         )){
@@ -110,13 +109,12 @@ struct StreamTests: Sendable {
         let client = KurrentDBClient(settings: .localhost())
         let streams = client.streams(of: .specified(streamIdentifier))
 
-        let subscription = try await client.streams(of: .all).subscribe(cursor: .end, options: .init())
-        
+        let subscription = try await client.streams(of: .all).subscribe(from: .end, options: .init())
         
         let response = try await streams.append(events: eventForTesting){
             $0.revision(expected: .any)
         }
-
+        
         var lastEvent: ReadEvent?
         for try await event in subscription.events {
             if event.record.eventType == eventForTesting.eventType {

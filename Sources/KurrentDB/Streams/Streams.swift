@@ -58,7 +58,7 @@ public struct Streams<Target: StreamTarget>: GRPCConcreteService {
     ///   - settings: The client settings for gRPC communication.
     ///   - callOptions: The gRPC call options, defaulting to `.defaults`.
     ///   - eventLoopGroup: The event loop group, defaulting to a shared multi-threaded group.
-    public init(target: Target, settings: ClientSettings, callOptions: CallOptions = .defaults, eventLoopGroup: EventLoopGroup = .singletonMultiThreadedEventLoopGroup) {
+    internal init(target: Target, settings: ClientSettings, callOptions: CallOptions = .defaults, eventLoopGroup: EventLoopGroup = .singletonMultiThreadedEventLoopGroup) {
         self.target = target
         self.settings = settings
         self.callOptions = callOptions
@@ -124,6 +124,7 @@ extension Streams where Target: SpecifiedStreamTarget {
     ///   - events: The list of events to append.
     ///   - options: Options for appending events.
     /// - Returns: An `Append.Response` indicating the result of the operation.
+    @discardableResult
     public func append(events: [EventData], options: Append.Options = .init()) async throws -> Append.Response {
         let usecase = Append(to: identifier, events: events, options: options)
         return try await usecase.perform(settings: settings, callOptions: callOptions)
@@ -159,14 +160,14 @@ extension Streams where Target: SpecifiedStreamTarget {
     public func read(from revision: UInt64, directTo direction: Direction, options: Read.Options = .init()) async throws -> AsyncThrowingStream<Read.Response, Error> {
         return try await read(cursor: .specified(.init(revision: revision, direction: direction)), options: options)
     }
-
+    
     /// Subscribes to events from the specified stream.
     ///
     /// - Parameters:
     ///   - cursor: The position in the stream from which to subscribe.
     ///   - options: Subscription options.
     /// - Returns: A `Subscription` instance.
-    public func subscribe(cursor: Cursor<StreamRevision>, options: Subscribe.Options = .init()) async throws -> Subscription {
+    public func subscribe(from cursor: Cursor<StreamRevision>, options: Subscribe.Options = .init()) async throws -> Subscription {
         let usecase = Subscribe(from: identifier, cursor: cursor, options: options)
         return try await usecase.perform(settings: settings, callOptions: callOptions)
     }
@@ -179,7 +180,7 @@ extension Streams where Target: SpecifiedStreamTarget {
     ///   - options: Subscription options.
     /// - Returns: A `Subscription` instance.
     public func subscribe(from revision: UInt64, options: Subscribe.Options = .init()) async throws -> Subscription {
-        return try await subscribe(cursor: .specified(.init(value: revision)), options: options)
+        return try await subscribe(from: .specified(.init(value: revision)), options: options)
     }
 
     /// Deletes the specified stream.
@@ -200,6 +201,38 @@ extension Streams where Target: SpecifiedStreamTarget {
     public func tombstone(options: Tombstone.Options = .init()) async throws -> Tombstone.Response {
         let usecase = Tombstone(to: identifier, options: options)
         return try await usecase.perform(settings: settings, callOptions: callOptions)
+    }
+}
+
+extension Streams where Target == ProjectionStream {
+    
+    /// The identifier of the specific stream.
+    public var identifier: StreamIdentifier {
+        get {
+            target.identifier
+        }
+    }
+
+    /// Subscribes to events from the specified stream.
+    ///
+    /// - Parameters:
+    ///   - cursor: The position in the stream from which to subscribe.
+    ///   - options: Subscription options.
+    /// - Returns: A `Subscription` instance.
+    public func subscribe(from cursor: Cursor<StreamRevision>, options: Subscribe.Options = .init()) async throws -> Subscription {
+        let usecase = Subscribe(from: identifier, cursor: cursor, options: options)
+        return try await usecase.perform(settings: settings, callOptions: callOptions)
+    }
+    
+    /// Subscribes to events from the specified stream.
+    ///
+    /// - Parameters:
+    ///   - revision: The revision of the stream that will be read from it.
+    ///   - direction: The direction to read.
+    ///   - options: Subscription options.
+    /// - Returns: A `Subscription` instance.
+    public func subscribe(from revision: UInt64, options: Subscribe.Options = .init()) async throws -> Subscription {
+        return try await subscribe(from: .specified(.init(value: revision)), options: options)
     }
 }
 
@@ -234,7 +267,7 @@ extension Streams where Target == AllStreams {
     ///   - cursor: The position from which to subscribe.
     ///   - options: Subscription options.
     /// - Returns: A `Streams.Subscription` instance.
-    public func subscribe(cursor: Cursor<StreamPosition>, options: SubscribeAll.Options = .init()) async throws -> Streams.Subscription {
+    public func subscribe(from cursor: Cursor<StreamPosition>, options: SubscribeAll.Options = .init()) async throws -> Streams.Subscription {
         let usecase = SubscribeAll(cursor: cursor, options: options)
         return try await usecase.perform(settings: settings, callOptions: callOptions)
     }
